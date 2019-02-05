@@ -42,23 +42,67 @@ def plot_histogram(x,n_bins,name,location):
     plt.grid(True)
     plt.savefig(location+name+'.png',format='png')
     plt.gcf().clear()
+    
+def plot_distributions(data,location):
+    # Create dictionary to translate from mag class to wavelength
+    mag_to_wv = {'mag_u' : 355.1,'mag_g' : 468.6,'mag_r' : 616.5,'mag_i' : 748.1,
+                 'mag_z' : 893.1, 'w1' : 3400,'w2' : 4600,'w3' : 12000,'w4' : 22000}
+    data_GALAXY = data[data['class']=='GALAXY']
+    x_GALAXY = np.zeros(len(data_GALAXY.columns)-1)
+    y_GALAXY = np.zeros(len(data_GALAXY.columns)-1)
+    
+    data_QSO = data[data['class']=='QSO']
+    x_QSO = np.zeros(len(data_QSO.columns)-1)
+    y_QSO = np.zeros(len(data_QSO.columns)-1)
+    
+    data_STAR = data[data['class']=='STAR']
+    x_STAR = np.zeros(len(data_STAR.columns)-1)
+    y_STAR = np.zeros(len(data_STAR.columns)-1)
+    i = 0
+    for element in data.columns:
+        if(element == 'class'):
+            continue
+        print(element)
+        x_GALAXY[i] = mag_to_wv[element]
+        y_GALAXY[i] = np.mean(data_GALAXY[[element]])
+        
+        x_QSO[i] = mag_to_wv[element]
+        y_QSO[i] = np.mean(data_QSO[[element]])
+        
+        x_STAR[i] = mag_to_wv[element]
+        y_STAR[i] = np.mean(data_STAR[[element]])
+        i += 1
+        
+    plt.scatter(x_GALAXY,y_GALAXY,label = 'Galaxy')
+    plt.scatter(x_QSO,y_QSO,label = 'Quasar')
+    plt.scatter(x_STAR,y_STAR,label = 'Star')
+    
+    plt.xlabel('Wavelength [nm]')
+    plt.ylabel('Mean Magnitude')
+    plt.title('Photometric Spectra')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(location+'spectraCombined.png',format='png')
+    
 
 if __name__ == "__main__":
     input_table = 'test_query_table_top10k'
-    trim_columns=['#ra', 'dec', 'z', 'class']
+    trim_columns=['#ra', 'dec', 'z', 'peak','integr','rms']
 
     data = prepare_data(input_table,trim_columns)
     
+    """
     # Plot histograms for each distribution in magnitude.
     location = 'histograms/'
     for element in data.columns:
         Magnitude = np.array(data[data[element]>0][element])
         name = element
         plot_histogram(Magnitude,100,name,location)
-    
-    
-    
-    
+    """
 
-
-
+    location = 'wavelengthDistributions/'
+    plot_distributions(data,location)
+    
+    
+    
+    
