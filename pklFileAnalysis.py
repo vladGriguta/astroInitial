@@ -54,13 +54,45 @@ def plot_histogram_combined(data,location,n_bins=100):
         if(element == 'class'):
             continue
         Magnitude = np.array(data[data[element]>0][element])
-        plt.hist(Magnitude,n_bins,density = True,faceColor = colors[i],alpha = 0.4,label=element)
+        plt.hist(Magnitude,n_bins,density = True,faceColor = colors[i],
+                 alpha = 0.4,label=element)
         i += 1
     plt.xlabel('Magnitude')
     plt.ylabel('Probability')
+    plt.grid(True)
     plt.legend()
     plt.show()
     plt.savefig(location+'allDistributionsOverlapped.png',format='png')
+    
+    
+def plot_histogram_byObjects(data,location,n_bins=100):
+    colors = ['r','y','b']
+    data_G = data[data['class'] == 'GALAXY']
+    data_Q = data[data['class'] == 'QSO']
+    data_S = data[data['class'] == 'STAR']
+
+    for element in data.columns:
+        # skip over class
+        if(element == 'class'):
+            continue
+        Magnitude_G = np.array(data_G[data_G[element]>0][element])
+        plt.hist(Magnitude_G,n_bins,density = True,faceColor = colors[0],
+                 alpha = 0.7,label='Galaxy')
+        Magnitude_Q = np.array(data_Q[data_Q[element]>0][element])
+        plt.hist(Magnitude_Q,n_bins,density = True,faceColor = colors[1],
+                 alpha = 0.7,label='Quasar')
+        Magnitude_S = np.array(data_S[data_S[element]>0][element])
+        plt.hist(Magnitude_S,n_bins,density = True,faceColor = colors[2],
+                 alpha = 0.7,label='STAR')
+        plt.xlabel('Magnitude')
+        plt.ylabel('Probability')
+        plt.title(element)
+        plt.xlim(5,27)
+        plt.grid(True)
+        plt.legend()
+        plt.savefig(location+element+'.png',format='png')
+        plt.gcf().clear()
+        
     
 def plot_distributions(data,location):
     """
@@ -133,9 +165,13 @@ if __name__ == "__main__":
     location = 'wavelengthDistributions/'
     plot_distributions(data,location)
     """
+    """
     location = 'histograms/'
     plot_histogram_combined(data,location,n_bins=100)
+    """
     
+    location = 'histogramsByClass/'
+    plot_histogram_byObjects(data,location,n_bins=100)
     
     
     
