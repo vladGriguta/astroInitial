@@ -32,7 +32,7 @@ def prepare_data(filename, trim_columns, verbose=True):
     #trim away unwanted columns
     data_table_trim=data_table.drop(columns=trim_columns)
     
-    return data_table_trim
+    return pd.DataFrame(data_table_trim)
 
 def plot_histogram(x,n_bins,name,location):
     n,bins,patches = plt.hist(x,n_bins,density = True, faceColor = 'b',alpha = 0.75)
@@ -43,7 +43,35 @@ def plot_histogram(x,n_bins,name,location):
     plt.savefig(location+name+'.png',format='png')
     plt.gcf().clear()
     
+    
+def plot_histogram_combined(data,location,n_bins=100):
+    # Generate len(data.columns) colors
+    colors = ['darkred','r','orange','y','g','b','navy','violet','m']
+    colors = colors[0:len(data.columns)]
+    # Do the stuff
+    i = 0
+    for element in data.columns:
+        if(element == 'class'):
+            continue
+        Magnitude = np.array(data[data[element]>0][element])
+        plt.hist(Magnitude,n_bins,density = True,faceColor = colors[i],alpha = 0.4,label=element)
+        i += 1
+    plt.xlabel('Magnitude')
+    plt.ylabel('Probability')
+    plt.legend()
+    plt.show()
+    plt.savefig(location+'allDistributionsOverlapped.png',format='png')
+    
 def plot_distributions(data,location):
+    """
+    Function that takes as input the database with magnitudes of objects for
+    different photometric filters and outputs the distribution of magnitude
+    for each class of objects.
+    The filters used in SDSS are:
+        'mag_u' : 355.1,'mag_g' : 468.6,'mag_r' : 616.5,'mag_i' : 748.1,
+        'mag_z' : 893.1, 'w1' : 3400,'w2' : 4600,'w3' : 12000,'w4' : 22000
+    """
+    
     # Create dictionary to translate from mag class to wavelength
     mag_to_wv = {'mag_u' : 355.1,'mag_g' : 468.6,'mag_r' : 616.5,'mag_i' : 748.1,
                  'mag_z' : 893.1, 'w1' : 3400,'w2' : 4600,'w3' : 12000,'w4' : 22000}
@@ -100,8 +128,24 @@ if __name__ == "__main__":
         plot_histogram(Magnitude,100,name,location)
     """
 
+    
+    """
     location = 'wavelengthDistributions/'
     plot_distributions(data,location)
+    """
+    location = 'histograms/'
+    plot_histogram_combined(data,location,n_bins=100)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     
     
