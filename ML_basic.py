@@ -6,7 +6,7 @@ Created on Thu Feb  7 14:19:06 2019
 @author: vladgriguta
 """
 
-import os, sys, glob
+#import os, sys, glob
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -17,18 +17,22 @@ import pickle
 import time
 import itertools
 from textwrap import wrap
-import multiprocessing
-import time
+#import multiprocessing
+#import time
 
 #ML libraries
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
-from sklearn.feature_selection import SelectFromModel
-from sklearn.metrics import classification_report
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import f1_score
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline
+
+from sklearn.linear_model import LogisticRegression
+#from sklearn.feature_selection import SelectFromModel
+#from sklearn.metrics import classification_report
+
 import scipy.stats as stats
 from sklearn import manifold
 from sklearn.cluster import KMeans
@@ -56,6 +60,11 @@ def prepare_data(filename, trim_columns, train_percent=0.7, tsne=False):
     all_features=data_table.drop(columns=trim_columns+['class'])
     all_classes=data_table['class']
     
+    # Scale all data
+    scaler = MinMaxScaler()
+    scaler.fit(all_features)
+    all_features = scaler.transform(all_features)
+    
     #split data up into test/train
     features_train, features_test, classes_train, classes_test = train_test_split(all_features,
                     all_classes, train_size=train_percent, random_state=0, stratify=all_classes)
@@ -66,9 +75,9 @@ def prepare_data(filename, trim_columns, train_percent=0.7, tsne=False):
     if tsne==False:
         return {'features_train':features_train, 'features_test':features_test,
                 'classes_train':classes_train, 'classes_test':classes_test,
-                'class_names':class_names, 'feature_names':feature_names}
+                'class_names':class_names, 'feature_names':feature_names}, scaler
     if tsne==True:
-        return {'all_features':all_features, 'all_classes':all_classes}
+        return {'all_features':all_features, 'all_classes':all_classes}, scaler
 
 
 def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix',
@@ -102,17 +111,7 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
     plt.gcf().clear()
     
     
-#Function to run randon forest pipeline with feature pruning and analysis
-def RF_pipeline(data, train_percent, n_jobs=-1, n_estimators=500):
-    #rfc=RandomForestClassifier(n_jobs=n_jobs,n_estimators=n_estimators,random_state=2,class_weight='balanced')
-    pipeline = Pipeline([ ('classification', RandomForestClassifier(n_jobs=n_jobs,
-            n_estimators=n_estimators,random_state=0,class_weight='balanced')) ])
-    #do the fit and feature selection
-    pipeline.fit(data['features_train'], data['classes_train'])
-    # check accuracy and other metrics:
-    classes_pred = pipeline.predict(data['features_test'])
-    accuracy_before=(accuracy_score(data['classes_test'], classes_pred))
-
+def plot_feature_importance(data,pipeline,title,location='MLResults/'):
     #make plot of feature importances
     clf=pipeline.steps[0][1] #get classifier used. zero because only 1 step.
     importances = pipeline.steps[0][1].feature_importances_
@@ -124,39 +123,70 @@ def RF_pipeline(data, train_percent, n_jobs=-1, n_estimators=500):
         #print("%d. feature %d (%f) {0}" % (f + 1, indices[f], importances[indices[f]]), feature_names[indices[f]])
         feature_names_importanceorder.append(str(data['feature_names'][indices[f]]))
     plt.figure()
-    plt.title("\n".join(wrap("Feature importances. n_est={0}. Trained on {1}% of data."+
-        " Accuracy before={2:.3f}".format(n_estimators,train_percent*100,accuracy_before))))
+    plt.title(title)
     plt.bar(range(len(indices)), importances[indices],
            color="r", yerr=std[indices], align="center")
     plt.xticks(range(len(indices)), indices)
     plt.xlim([-1, len(indices)])
     plt.xticks(range(len(indices)), feature_names_importanceorder, rotation='vertical')
     plt.tight_layout()
-    plt.savefig('MLResults/Feature_importances.png')
+    plt.savefig(location+title+'.png',format='png')
     plt.gcf().clear()
     
-    return classes_pred
+#Function to run randon forest pipeline with feature pruning and analysis
+def RF_pipeline(data, train_percent, n_jobs=-1, n_estimators=500):
+    #rfc=RandomForestClassifier(n_jobs=n_jobs,n_estimators=n_estimators,random_state=2,class_weight='balanced')
+    pipeline = Pipeline([ ('classification', RandomForestClassifier(n_jobs=n_jobs,
+            n_estimators=n_estimators,random_state=0,class_weight='balanced')) ])
+    #do the fit and feature selection
+    pipeline.fit(data['features_train'], data['classes_train'])
+    # check accuracy and other metrics:
+    classes_pred = pipeline.predict(data['features_test'])
+    accuracy=(accuracy_score(data['classes_test'], classes_pred))
+    # Compute the F1 Score
+    f1 = f1_score(data['classes_test'],classes_pred,labels=data['class_names'],average='weighted')    
 
+    #make plot of feature importances
+    plot_feature_importance(data,pipeline,title='Feature Importance RF')
+    
+    # Compute and plot the confusion matrix
+    cnf_matrix = confusion_matrix(data['classes_test'], classes_pred)
+    plot_confusion_matrix(cnf_matrix, classes=data['class_names'],
+                          title='Confusion matrix Random Forest')
+    
+    return classes_pred,accuracy,f1
+    
 
-
+def linear_classifier(data,train_percent,n_jobs=-1):
+    pipeline = Pipeline([('classification', LogisticRegression(n_jobs=3,solver='newton-cg',
+                tol=1e-5,max_iter=500,class_weight='balanced',multi_class='auto'))])
+    pipeline.fit(data['features_train'],data['classes_train'])
+    # check accuracy and other metrics:
+    classes_pred = pipeline.predict(data['features_test'])
+    accuracy=(accuracy_score(data['classes_test'], classes_pred))
+    f1 = f1_score(data['classes_test'],classes_pred,labels=data['class_names'],average='weighted')
+    
+    #plot_feature_importance(data,pipeline,title='Feature Importance LogisticReg')
+    
+    # Compute and plot the confusion matrix
+    cnf_matrix = confusion_matrix(data['classes_test'], classes_pred)
+    plot_confusion_matrix(cnf_matrix, classes=data['class_names'],
+                          title='Confusion matrix Random Forest')
+    
+    return classes_pred,accuracy,f1
+    
 if __name__ == "__main__":
     
     input_table = 'test_query_table_100k'
     trim_columns=['#ra', 'dec', 'z', 'peak','integr','rms','subclass']
 
-    data = prepare_data(input_table,trim_columns,train_percent=0.7)
+    data, scaler = prepare_data(input_table,trim_columns,train_percent=0.7)
     
     # Call the Random Forest classifier to do the job
-    classes_pred = RF_pipeline(data,train_percent=0.7,n_jobs=3,n_estimators=500)
+    #classes_pred,accuracy_RF,f1_RF = RF_pipeline(data,train_percent=0.7,n_jobs=-1,n_estimators=500)
     
-    # Compute and plot the confusion matrix
-    cnf_matrix = confusion_matrix(data['classes_test'], classes_pred)
-    plot_confusion_matrix(cnf_matrix, classes=data['class_names'],
-                          title='Confusion matrix, without normalization')
+    classes_pred,accuracy_LR,f1_LR = linear_classifier(data,train_percent=0.7,n_jobs=-1)
     
-    # Compute the F1 Score
-    labels = data['class_names']
-    f1 = f1_score(data['classes_test'],classes_pred,labels=labels,average='weighted')
     
     
     
