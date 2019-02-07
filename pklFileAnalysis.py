@@ -75,19 +75,19 @@ def plot_histogram_byObjects(data,location,n_bins=100):
         # skip over class
         if(element == 'class'):
             continue
-        Magnitude_G = np.array(data_G[data_G[element]>0][element])
+        Magnitude_G = np.array(data_G[(data_G[element]>0) & (data_G[element]<100)][element])
         plt.hist(Magnitude_G,n_bins,density = True,faceColor = colors[0],
-                 alpha = 0.7,label='Galaxy')
-        Magnitude_Q = np.array(data_Q[data_Q[element]>0][element])
+                 alpha = 0.4,label='Galaxy')
+        Magnitude_Q = np.array(data_Q[(data_Q[element]>0) & (data_Q[element]<100)][element])
         plt.hist(Magnitude_Q,n_bins,density = True,faceColor = colors[1],
-                 alpha = 0.7,label='Quasar')
-        Magnitude_S = np.array(data_S[data_S[element]>0][element])
+                 alpha = 0.4,label='Quasar')
+        Magnitude_S = np.array(data_S[(data_S[element]>0) & (data_S[element]<100)][element])
         plt.hist(Magnitude_S,n_bins,density = True,faceColor = colors[2],
-                 alpha = 0.7,label='STAR')
+                 alpha = 0.4,label='Star')
         plt.xlabel('Magnitude')
         plt.ylabel('Probability')
         plt.title(element)
-        plt.xlim(5,27)
+        plt.xlim(7,27.5)
         plt.grid(True)
         plt.legend()
         plt.savefig(location+element+'.png',format='png')
@@ -169,13 +169,17 @@ if __name__ == "__main__":
     location = 'histograms/'
     plot_histogram_combined(data,location,n_bins=100)
     """
-    
+    """
     location = 'histogramsByClass/'
     plot_histogram_byObjects(data,location,n_bins=100)
+    """
     
-    
-    
-    
+    input_table2 = '../moreData/test_query_table_1M'
+    trim_columns2 = trim_columns + ['subclass']
+        
+    data2 = prepare_data(input_table2,trim_columns2)
+    location = 'histogramsByClass1M/'
+    plot_histogram_byObjects(data2,location,n_bins=100)
     
     
     
