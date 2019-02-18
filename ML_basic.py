@@ -30,6 +30,7 @@ from sklearn.metrics import f1_score
 from sklearn.pipeline import Pipeline
 
 from sklearn.linear_model import LogisticRegression
+from sklearn.svm import LinearSVC
 #from sklearn.feature_selection import SelectFromModel
 #from sklearn.metrics import classification_report
 
@@ -52,14 +53,18 @@ def load_obj(name ):
         return pd.DataFrame(pickle.load(f))
     
 #Function to prepare data for Machine Learning
-def prepare_data(filename, trim_columns, train_percent=0.7, tsne=False):
+def prepare_data(filename, trim_columns, train_percent=0.7, tsne=False,additionalFeatures=False):
     
     data_table=load_obj(filename)
 
     #trim away unwanted columns    
     all_features=data_table.drop(columns=trim_columns+['class'])
+    if(additionalFeatures):
+        all_features['w1-w3'] = all_features['w1'] - all_features['w3']
+        all_features['mag_z-mag_u'] = all_features['mag_z'] - all_features['mag_u']
+        
     all_classes=data_table['class']
-    
+    columns = all_features.columns
     # Scale all data
     scaler = MinMaxScaler()
     scaler.fit(all_features)
@@ -69,13 +74,12 @@ def prepare_data(filename, trim_columns, train_percent=0.7, tsne=False):
     features_train, features_test, classes_train, classes_test = train_test_split(all_features,
                     all_classes, train_size=train_percent, random_state=0, stratify=all_classes)
     class_names=np.array(np.unique(all_classes))
-    feature_names=list(all_features)
 
     #return dictionary: features_train, features_test, classes_train, classes_test, class_names, feature_names
     if tsne==False:
         return {'features_train':features_train, 'features_test':features_test,
                 'classes_train':classes_train, 'classes_test':classes_test,
-                'class_names':class_names, 'feature_names':feature_names}, scaler
+                'class_names':class_names, 'feature_names':columns}, scaler
     if tsne==True:
         return {'all_features':all_features, 'all_classes':all_classes}, scaler
 
@@ -107,7 +111,7 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
-    plt.savefig('MLResults/ConfusionMatrix.png')
+    plt.savefig('MLResults/'+title+'.png')
     plt.gcf().clear()
     
     
@@ -157,7 +161,7 @@ def RF_pipeline(data, train_percent, n_jobs=-1, n_estimators=500):
     return classes_pred,accuracy,f1
     
 
-def linear_classifier(data,train_percent,n_jobs=-1):
+def linear_classifier(data,train_percent,n_jobs=-1,additionalFeatures=False):
     pipeline = Pipeline([('classification', LogisticRegression(n_jobs=3,solver='newton-cg',
                 tol=1e-5,max_iter=500,class_weight='balanced',multi_class='auto'))])
     pipeline.fit(data['features_train'],data['classes_train'])
@@ -170,25 +174,77 @@ def linear_classifier(data,train_percent,n_jobs=-1):
     
     # Compute and plot the confusion matrix
     cnf_matrix = confusion_matrix(data['classes_test'], classes_pred)
-    plot_confusion_matrix(cnf_matrix, classes=data['class_names'],
-                          title='Confusion matrix Random Forest')
+    if(additionalFeatures):
+        plot_confusion_matrix(cnf_matrix, classes=data['class_names'],
+                          title='Confusion matrix Linear +features')
+    else:
+        plot_confusion_matrix(cnf_matrix, classes=data['class_names'],
+                          title='Confusion matrix Linear')
+    
+    # Plot feature importance
+    print('Now plotting the feature importances...\n')
+
+    feat_importances = pd.Series(np.abs(np.array(pipeline.steps[0][1].coef_[0])), index=data['feature_names'])
+    feat_importances.nlargest(10).plot(kind='barh')
+    plt.yticks(rotation=45)
+    print('Finished Feature importance plotting.')
+    if(additionalFeatures):
+        plt.savefig('MLResults/LinearFeatureImportanceAdditionalFeatures.png')
+    else:
+        plt.savefig('MLResults/LinearFeatureImportance.png')
     
     return classes_pred,accuracy,f1
     
+def SVC_classifier(data,train_percent,additionalFeatures=False):
+    pipeline = Pipeline([('classification', LinearSVC(loss='hinge', tol=1e-5,
+                    max_iter=500,class_weight='balanced',multi_class='ovr'))])
+    pipeline.fit(data['features_train'],data['classes_train'])
+    # check accuracy and other metrics:
+    classes_pred = pipeline.predict(data['features_test'])
+    accuracy=(accuracy_score(data['classes_test'], classes_pred))
+    f1 = f1_score(data['classes_test'],classes_pred,labels=data['class_names'],average='weighted')
+    
+    #plot_feature_importance(data,pipeline,title='Feature Importance LogisticReg')
+    
+    # Compute and plot the confusion matrix
+    cnf_matrix = confusion_matrix(data['classes_test'], classes_pred)
+    if(additionalFeatures):
+        plot_confusion_matrix(cnf_matrix, classes=data['class_names'],
+                          title='Confusion matrix SVC +features')
+    else:
+        plot_confusion_matrix(cnf_matrix, classes=data['class_names'],
+                          title='Confusion matrix SVC')
+    
+    # Plot feature importance
+    print('Now plotting the feature importances...\n')
+
+    feat_importances = pd.Series(np.abs(np.array(pipeline.steps[0][1].coef_[0])), index=data['feature_names'])
+    feat_importances.nlargest(10).plot(kind='barh')
+    plt.yticks(rotation=45)
+    print('Finished Feature importance plotting.')
+    if(additionalFeatures):
+        plt.savefig('MLResults/SVCFeatureImportanceAdditionalFeatures.png')
+    else:
+        plt.savefig('MLResults/SVCFeatureImportance.png')
+    
+    return classes_pred,accuracy,f1
+
 if __name__ == "__main__":
     
     input_table = 'test_query_table_100k'
     trim_columns=['#ra', 'dec', 'z', 'peak','integr','rms','subclass']
 
-    data, scaler = prepare_data(input_table,trim_columns,train_percent=0.7)
     
-    # Call the Random Forest classifier to do the job
-    #classes_pred,accuracy_RF,f1_RF = RF_pipeline(data,train_percent=0.7,n_jobs=-1,n_estimators=500)
+    data, scaler = prepare_data(input_table,trim_columns,train_percent=0.7,additionalFeatures=False)
+    """
+    classes_pred,accuracy_LR,f1_LR = linear_classifier(data,train_percent=0.7,n_jobs=-1,additionalFeatures=False)
+    print('The accuracy of LR is a = '+str(accuracy_LR))
+    print('The f1 score of LR is a = '+str(f1_LR))
+    """
     
-    classes_pred,accuracy_LR,f1_LR = linear_classifier(data,train_percent=0.7,n_jobs=-1)
-    
-    
-    
+    classes_pred,accuracy_SVC,f1_SVC = SVC_classifier(data,train_percent=0.7,additionalFeatures=True)
+    print('The accuracy of LR is a = '+str(accuracy_SVC))
+    print('The f1 score of LR is a = '+str(f1_SVC))
     
     
     
