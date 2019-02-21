@@ -176,13 +176,13 @@ def plot_distributions(data,location):
         if(element == 'class'):
             continue
         print(element)
-        x_GALAXY[i] = mag_to_wv[element]
+        x_GALAXY[i] = np.log10(mag_to_wv[element])
         y_GALAXY[i] = np.mean(data_GALAXY[[element]])
         
-        x_QSO[i] = mag_to_wv[element]
+        x_QSO[i] = np.log10(mag_to_wv[element])
         y_QSO[i] = np.mean(data_QSO[[element]])
         
-        x_STAR[i] = mag_to_wv[element]
+        x_STAR[i] = np.log10(mag_to_wv[element])
         y_STAR[i] = np.mean(data_STAR[[element]])
         i += 1
         
@@ -190,12 +190,12 @@ def plot_distributions(data,location):
     plt.scatter(x_QSO,y_QSO,label = 'Quasar')
     plt.scatter(x_STAR,y_STAR,label = 'Star')
     
-    plt.xlabel('Wavelength [nm]')
+    plt.xlabel('Logarithmic Wavelength [log(nm)]')
     plt.ylabel('Mean Magnitude')
     plt.title('Photometric Spectra')
     plt.legend()
     plt.grid(True)
-    plt.savefig(location+'spectraCombined.png',format='png')
+    plt.savefig(location+'spectraCombinedLog.png',format='png')
     
 
 def plot_subclass_appearances(data,directory):
@@ -226,13 +226,13 @@ def plot_subclass_appearances(data,directory):
 
 
 if __name__ == "__main__":
-    """
-    #input_table = 'test_query_table_top10k'
-    #trim_columns=['#ra', 'dec', 'z', 'peak','integr','rms']
-
-    #data = prepare_data(input_table,trim_columns)
     
+    input_table = 'test_query_table_top10k'
+    trim_columns=['#ra', 'dec', 'z', 'peak','integr','rms']
 
+    data = prepare_data(input_table,trim_columns)
+    
+    """
     # Plot histograms for each distribution in magnitude.
     location = 'histograms/'
     for element in data.columns:
@@ -242,10 +242,10 @@ if __name__ == "__main__":
     """
 
     
-    """
+    
     location = 'wavelengthDistributions/'
     plot_distributions(data,location)
-    """
+    
     """
     location = 'histograms/'
     plot_histogram_combined(data,location,n_bins=100)
@@ -278,13 +278,13 @@ if __name__ == "__main__":
     data2 = prepare_data(input_table2,trim_columns)
     data2 = data2.replace(np.nan, 'Not Assigned', regex=True)
     
-    
+    """
     directory = 'SubclassAppearances/'
     if not os.path.exists(directory):
         os.makedirs(directory)
     
     plot_subclass_appearances(data2,directory)
-    
+    """
     
     
     """

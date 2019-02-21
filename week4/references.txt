@@ -1,0 +1,5 @@
+https://en.wikipedia.org/wiki/Baum%E2%80%93Welch_algorithm
+
+https://en.wikipedia.org/wiki/Hidden_Markov_model
+
+

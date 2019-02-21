@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Feb  7 14:19:06 2019
+Created on Thu Feb 21 10:45:49 2019
 
 @author: vladgriguta
 """
+
 
 #import os, sys, glob
 import pandas as pd
@@ -12,6 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import pickle
+import os
 import time
 import itertools
 from textwrap import wrap
@@ -51,39 +53,50 @@ def load_obj(name ):
         return pd.DataFrame(pickle.load(f))
     
 #Function to prepare data for Machine Learning
-def prepare_data(filename, trim_columns, train_percent=0.7, tsne=False,additionalFeatures=False):
+def prepare_data_subclass_galaxies(input_table, trim_columns, train_percent=0.7, tsne=False,additionalFeatures=False):
     
-    data_table=load_obj(filename)
+    data_table=load_obj(input_table)
+    
+    # drop stars
+    data_table.drop(index=data_table[data_table['class']=='STAR'].index,inplace=True)
+    
+    # Drop the entries that do not have a subclass assigned
+    data_table = data_table.replace(np.nan, 'X', regex=True)
+    data_table.drop(index=data_table[data_table['subclass']=='X'].index,inplace=True)
+    
+    # save the classes to predict        
+    data_table['ClassAndSubclass'] = data_table['class'] +', '+ data_table['subclass']
+    classes=data_table['ClassAndSubclass']
 
     #trim away unwanted columns    
-    all_features=data_table.drop(columns=trim_columns+['class'])
+    features=data_table.drop(columns=trim_columns+['ClassAndSubclass'])
     if(additionalFeatures):
-        all_features['w1-w3'] = all_features['w1'] - all_features['w3']
-        all_features['mag_z-mag_u'] = all_features['mag_z'] - all_features['mag_u']
-        
-    all_classes=data_table['class']
-    columns = all_features.columns
+        features['w1-w3'] = features['w1'] - features['w3']
+        features['mag_z-mag_u'] = features['mag_z'] - features['mag_u']
+
+    name_of_features = features.columns
+    
     # Scale all data
     scaler = MinMaxScaler()
-    scaler.fit(all_features)
-    all_features = scaler.transform(all_features)
+    scaler.fit(features)
+    features = scaler.transform(features)
     
     #split data up into test/train
-    features_train, features_test, classes_train, classes_test = train_test_split(all_features,
-                    all_classes, train_size=train_percent, random_state=0, stratify=all_classes)
-    class_names=np.array(np.unique(all_classes))
+    features_train, features_test, classes_train, classes_test = train_test_split(features,
+                    classes, train_size=train_percent, random_state=0, stratify=classes)
+    class_names=np.array(np.unique(classes))
 
     #return dictionary: features_train, features_test, classes_train, classes_test, class_names, feature_names
     if tsne==False:
         return {'features_train':features_train, 'features_test':features_test,
                 'classes_train':classes_train, 'classes_test':classes_test,
-                'class_names':class_names, 'feature_names':columns}, scaler
+                'class_names':class_names, 'feature_names':name_of_features}, scaler
     if tsne==True:
-        return {'all_features':all_features, 'all_classes':all_classes}, scaler
+        return {'all_features':features, 'all_classes':classes}, scaler
 
 
 def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix',
-                          cmap=plt.cm.Blues):
+                          cmap=plt.cm.Blues,directory=''):
     """
     This function prints and plots the confusion matrix.
     Normalization can be applied by setting `normalize=True`.
@@ -109,11 +122,11 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
-    plt.savefig('MLResults/'+title+'.png')
+    plt.savefig(directory+title+'.png')
     plt.gcf().clear()
     
     
-def plot_feature_importance(data,pipeline,title,location='MLResults/'):
+def plot_feature_importance(data,pipeline,title,directory=''):
     #make plot of feature importances
     clf=pipeline.steps[0][1] #get classifier used. zero because only 1 step.
     importances = pipeline.steps[0][1].feature_importances_
@@ -132,11 +145,11 @@ def plot_feature_importance(data,pipeline,title,location='MLResults/'):
     plt.xlim([-1, len(indices)])
     plt.xticks(range(len(indices)), feature_names_importanceorder, rotation='vertical')
     plt.tight_layout()
-    plt.savefig(location+title+'.png',format='png')
+    plt.savefig(directory+title+'.png',format='png')
     plt.gcf().clear()
     
 #Function to run randon forest pipeline with feature pruning and analysis
-def RF_pipeline(data, train_percent, n_jobs=-1, n_estimators=500):
+def RF_pipeline(data, train_percent, n_jobs=-1, n_estimators=500,directory=''):
     #rfc=RandomForestClassifier(n_jobs=n_jobs,n_estimators=n_estimators,random_state=2,class_weight='balanced')
     pipeline = Pipeline([ ('classification', RandomForestClassifier(n_jobs=n_jobs,
             n_estimators=n_estimators,random_state=0,class_weight='balanced')) ])
@@ -149,17 +162,17 @@ def RF_pipeline(data, train_percent, n_jobs=-1, n_estimators=500):
     f1 = f1_score(data['classes_test'],classes_pred,labels=data['class_names'],average='weighted')    
 
     #make plot of feature importances
-    plot_feature_importance(data,pipeline,title='Feature Importance RF')
+    plot_feature_importance(data,pipeline,title='Feature Importance RF',directory=directory)
     
     # Compute and plot the confusion matrix
     cnf_matrix = confusion_matrix(data['classes_test'], classes_pred)
     plot_confusion_matrix(cnf_matrix, classes=data['class_names'],
-                          title='Confusion matrix Random Forest')
+                          title='Confusion matrix Random Forest',directory=directory)
     
     return classes_pred,accuracy,f1
     
 
-def linear_classifier(data,train_percent,n_jobs=-1,additionalFeatures=False):
+def linear_classifier(data,train_percent,n_jobs=-1,additionalFeatures=False,directory=''):
     pipeline = Pipeline([('classification', LogisticRegression(n_jobs=3,solver='newton-cg',
                 tol=1e-5,max_iter=500,class_weight='balanced',multi_class='auto'))])
     pipeline.fit(data['features_train'],data['classes_train'])
@@ -174,10 +187,10 @@ def linear_classifier(data,train_percent,n_jobs=-1,additionalFeatures=False):
     cnf_matrix = confusion_matrix(data['classes_test'], classes_pred)
     if(additionalFeatures):
         plot_confusion_matrix(cnf_matrix, classes=data['class_names'],
-                          title='Confusion matrix Linear +features')
+                          title='Confusion matrix Linear +features',directory=directory)
     else:
         plot_confusion_matrix(cnf_matrix, classes=data['class_names'],
-                          title='Confusion matrix Linear')
+                          title='Confusion matrix Linear',directory=directory)
     
     # Plot feature importance
     print('Now plotting the feature importances...\n')
@@ -187,13 +200,13 @@ def linear_classifier(data,train_percent,n_jobs=-1,additionalFeatures=False):
     plt.yticks(rotation=45)
     print('Finished Feature importance plotting.')
     if(additionalFeatures):
-        plt.savefig('MLResults/LinearFeatureImportanceAdditionalFeatures.png')
+        plt.savefig(directory+'LinearFeatureImportanceAdditionalFeatures.png')
     else:
-        plt.savefig('MLResults/LinearFeatureImportance.png')
+        plt.savefig(directory+'LinearFeatureImportance.png')
     
     return classes_pred,accuracy,f1
     
-def SVC_classifier(data,train_percent,additionalFeatures=False):
+def SVC_classifier(data,train_percent,additionalFeatures=False,directory=''):
     pipeline = Pipeline([('classification', LinearSVC(loss='hinge', tol=1e-5,
                     max_iter=500,class_weight='balanced',multi_class='ovr'))])
     pipeline.fit(data['features_train'],data['classes_train'])
@@ -208,10 +221,10 @@ def SVC_classifier(data,train_percent,additionalFeatures=False):
     cnf_matrix = confusion_matrix(data['classes_test'], classes_pred)
     if(additionalFeatures):
         plot_confusion_matrix(cnf_matrix, classes=data['class_names'],
-                          title='Confusion matrix SVC +features')
+                          title='Confusion matrix SVC +features',directory=directory)
     else:
         plot_confusion_matrix(cnf_matrix, classes=data['class_names'],
-                          title='Confusion matrix SVC')
+                          title='Confusion matrix SVC',directory=directory)
     
     # Plot feature importance
     print('Now plotting the feature importances...\n')
@@ -221,34 +234,48 @@ def SVC_classifier(data,train_percent,additionalFeatures=False):
     plt.yticks(rotation=45)
     print('Finished Feature importance plotting.')
     if(additionalFeatures):
-        plt.savefig('MLResults/SVCFeatureImportanceAdditionalFeatures.png')
+        plt.savefig(directory+'SVCFeatureImportanceAdditionalFeatures.png')
     else:
-        plt.savefig('MLResults/SVCFeatureImportance.png')
+        plt.savefig(directory+'SVCFeatureImportance.png')
     
     return classes_pred,accuracy,f1
 
 if __name__ == "__main__":
     
     input_table = 'test_query_table_100k'
-    trim_columns=['#ra', 'dec', 'z', 'peak','integr','rms','subclass']
+    trim_columns=['#ra', 'dec', 'z', 'peak','integr','rms','subclass','class']
 
     
-    data, scaler = prepare_data(input_table,trim_columns,train_percent=0.7,additionalFeatures=False)
+    data, scaler = prepare_data_subclass_galaxies(input_table,trim_columns,train_percent=0.7,additionalFeatures=False)
     
-    classes_pred,accuracy_LR,f1_LR = linear_classifier(data,train_percent=0.7,n_jobs=-1,additionalFeatures=False)
+    directory = 'MLsubclass/'
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    
+    classes_pred,accuracy_LR,f1_LR = linear_classifier(data,train_percent=0.7,n_jobs=-1,
+                                            additionalFeatures=False,directory=directory)
     print('The accuracy of LR is a = '+str(accuracy_LR))
     print('The f1 score of LR is a = '+str(f1_LR))
     
     
-    classes_pred,accuracy_SVC,f1_SVC = SVC_classifier(data,train_percent=0.7,additionalFeatures=True)
+    classes_pred,accuracy_SVC,f1_SVC = SVC_classifier(data,train_percent=0.7,
+                                            additionalFeatures=False,directory=directory)
     print('The accuracy of SVC is a = '+str(accuracy_SVC))
     print('The f1 score of SVC is a = '+str(f1_SVC))
     
     
+    classes_pred_RF,accuracy_RF,f1_RF = RF_pipeline(data, train_percent=0.7, n_jobs=-1,
+                                                    n_estimators=500,directory=directory)
+    print('The accuracy of RF is a = '+str(accuracy_RF))
+    print('The f1 score of RF is a = '+str(f1_RF))
     
-    
-    
-    
-    
-    
+    """
+    # Check if the accuracy of 80% is true
+    comparisonList = np.array(np.stack((np.array(data['classes_test']),np.array(classes_pred_RF)),axis=1))
+    erroneousClassification = 0
+    for i in range(len(comparisonList)):
+        if(comparisonList[i][0] != comparisonList[i][1]):
+            erroneousClassification += 1
+    print('The accuracy of RF is: '+str(100*(1-(erroneousClassification/len(comparisonList))))+' %')
+    """
     
