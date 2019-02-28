@@ -86,7 +86,6 @@ def prepare_data_subclass_galaxies(input_table, trim_columns, train_percent=0.7,
     
     
     
-    
     # save the classes to predict        
     #data_table['ClassAndSubclass'] = data_table['class'] +', '+ data_table['subclass']
     classes=data_table['ClassAndSubclass']
