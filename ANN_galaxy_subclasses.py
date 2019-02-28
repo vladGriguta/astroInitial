@@ -101,13 +101,15 @@ def prepare_data_NN(input_table, trim_columns,train_percent=0.7):
     
     # Drop the entries that do not have a subclass assigned
     data_table = data_table.replace(np.nan, 'X', regex=True)
-    data_table.drop(index=data_table[data_table['subclass']=='X'].index,inplace=True)
+    #data_table.drop(index=data_table[data_table['subclass']=='X'].index,inplace=True)
     
     data_table.reset_index(inplace=True)
     import warnings
     warnings.filterwarnings("ignore")
     # Create dummy labels for the class-subclass combination
     data_table['ClassAndSubclass'] = ''
+    
+    data_table['ClassAndSubclass'][(data_table['class']=='GALAXY') & (data_table['subclass']=='X')] = 'G N/A'
     data_table['ClassAndSubclass'][(data_table['class']=='GALAXY') & (data_table['subclass']=='STARFORMING')] = 'G STF'
     data_table['ClassAndSubclass'][(data_table['class']=='GALAXY') & (data_table['subclass']=='BROADLINE')] = 'G BRL'
     data_table['ClassAndSubclass'][(data_table['class']=='GALAXY') & (data_table['subclass']=='STARBURST')] = 'G STB'
@@ -115,7 +117,8 @@ def prepare_data_NN(input_table, trim_columns,train_percent=0.7):
     data_table['ClassAndSubclass'][(data_table['class']=='GALAXY') & (data_table['subclass']=='AGN BROADLINE')] = 'G AGNB'    
     data_table['ClassAndSubclass'][(data_table['class']=='GALAXY') & (data_table['subclass']=='STARBURST BROADLINE')] = 'G STBR'
     data_table['ClassAndSubclass'][(data_table['class']=='GALAXY') & (data_table['subclass']=='STARFORMING BROADLINE')] = 'G STFBR'
-
+    
+    data_table['ClassAndSubclass'][(data_table['class']=='QSO') & (data_table['subclass']=='X')] = 'Q N/A'
     data_table['ClassAndSubclass'][(data_table['class']=='QSO') & (data_table['subclass']=='STARFORMING')] = 'Q STF'
     data_table['ClassAndSubclass'][(data_table['class']=='QSO') & (data_table['subclass']=='BROADLINE')] = 'Q BRL'
     data_table['ClassAndSubclass'][(data_table['class']=='QSO') & (data_table['subclass']=='STARBURST')] = 'Q STB'  
@@ -125,7 +128,7 @@ def prepare_data_NN(input_table, trim_columns,train_percent=0.7):
     data_table['ClassAndSubclass'][(data_table['class']=='QSO') & (data_table['subclass']=='STARFORMING BROADLINE')] = 'Q STFBR'
     
     y=data_table['ClassAndSubclass']
-
+    
     #trim away unwanted columns    
     x=data_table.drop(columns=trim_columns+['ClassAndSubclass'])
 
@@ -142,21 +145,29 @@ def prepare_data_NN(input_table, trim_columns,train_percent=0.7):
     encoder = LabelEncoder()
     encoder.fit(y)
     encoded_Y = encoder.transform(y)
+    
+    # compute weights to account for class imbalace and improve f1 score
+    y_cat = np.unique(encoded_Y)
+    class_appearences = {y_cat[i]:np.sum(encoded_Y==y_cat[i]) for i in range(len(y_cat))}
+    n_classes_norm = len(encoded_Y)/10000
+    class_weights = {list(class_appearences.keys())[i]:n_classes_norm/list(class_appearences.values())[i] for i in range(len(class_appearences))}
+    
     # convert integers to dummy variables (i.e. one hot encoded)
     dummy_y = np_utils.to_categorical(encoded_Y)
+    
     
     #split data up into test/train
     x_train, x_test, dummy_y_train, dummy_y_test = train_test_split(x,
                     dummy_y, train_size=train_percent, random_state=0)
     
     
-    return x_train, x_test, dummy_y_train, dummy_y_test,encoder, name_of_features
+    return x_train, x_test, dummy_y_train, dummy_y_test,encoder,class_weights, name_of_features
     
     
 def NeuralNet(trim_columns,input_table='test_query_table_100k', n_jobs=-1,):
     
     
-    x_train, x_test, dummy_y_train, dummy_y_test,encoder,_ = prepare_data_NN(input_table, trim_columns)
+    x_train, x_test, dummy_y_train, dummy_y_test,encoder,class_weights,_ = prepare_data_NN(input_table, trim_columns)
     input_dim = len(x_train[0])
     output_dim = len(dummy_y_train[0])
     # define baseline model
@@ -168,20 +179,20 @@ def NeuralNet(trim_columns,input_table='test_query_table_100k', n_jobs=-1,):
         	# create model
         model = Sequential()
         model.add(Dense(units = 64, kernel_initializer = 'uniform', activation = 'relu', input_dim=input_dim))
-        model.add(Dropout(0.2))
+        model.add(Dropout(0.1))
         model.add(Dense(units = 32, kernel_initializer = 'uniform', activation = 'relu'))
-        model.add(Dropout(0.2))
+        model.add(Dropout(0.1))
         model.add(Dense(units = 16, kernel_initializer = 'uniform', activation = 'sigmoid'))
         model.add(Dense(units=output_dim, activation='softmax'))
     	# Compile model
-        model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+        model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['categorical_accuracy'])
         
         return model
     
 
     classifier = baseline_model()
     
-    classifier.fit(x_train, dummy_y_train, batch_size = 16, epochs = 10,verbose=True)
+    classifier.fit(x_train, dummy_y_train,class_weight=class_weights, batch_size = 16, epochs = 10,verbose=True)
     
     """
     estimator = KerasClassifier(build_fn=baseline_model, epochs=2, batch_size=1, verbose=0)
@@ -203,10 +214,13 @@ def NeuralNet(trim_columns,input_table='test_query_table_100k', n_jobs=-1,):
     classes_y_test = encoder.inverse_transform(encoded_y_test.astype(int))
     
     # Compute the F1 Score
-    f1 = f1_score(encoded_y_test,predictions,average='weighted')        
+    f1 = f1_score(encoded_y_test,predictions,average='macro')        
     # Compute and plot the confusion matrix
     #cnf_matrix = confusion_matrix(encoded_y_test, predictions,labels=classes_y_test)
     acc = accuracy_score(encoded_y_test,predictions)
+    
+    evaluation = classifier.evaluate(x=x_train, y=dummy_y_train, batch_size=16)
+    print(evaluation)
     
     print('The f1 score of NN is:   '+str(f1))
     print('The accuracy of NN is:   '+str(acc))
@@ -220,3 +234,11 @@ if __name__ == "__main__":
 
 
     encoded_y_test, predictions, classes_y_test = NeuralNet(trim_columns)
+    
+    
+    #cnf_matrix = confusion_matrix(encoded_y_test, predictions,labels=classes_y_test)
+    
+    
+    
+    
+    
