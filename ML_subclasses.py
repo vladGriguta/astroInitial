@@ -64,8 +64,31 @@ def prepare_data_subclass_galaxies(input_table, trim_columns, train_percent=0.7,
     data_table = data_table.replace(np.nan, 'X', regex=True)
     data_table.drop(index=data_table[data_table['subclass']=='X'].index,inplace=True)
     
+    data_table['subclass'].unique()
+    
+    # Create dummy labels for the class-subclass combination
+    data_table['ClassAndSubclass'] = ''
+    data_table['ClassAndSubclass'][(data_table['class']=='GALAXY') & (data_table['subclass']=='STARFORMING')] = 'G STF'
+    data_table['ClassAndSubclass'][(data_table['class']=='GALAXY') & (data_table['subclass']=='BROADLINE')] = 'G BRL'
+    data_table['ClassAndSubclass'][(data_table['class']=='GALAXY') & (data_table['subclass']=='STARBURST')] = 'G STB'
+    data_table['ClassAndSubclass'][(data_table['class']=='GALAXY') & (data_table['subclass']=='AGN')] = 'G AGN'
+    data_table['ClassAndSubclass'][(data_table['class']=='GALAXY') & (data_table['subclass']=='AGN BROADLINE')] = 'G AGNB'    
+    data_table['ClassAndSubclass'][(data_table['class']=='GALAXY') & (data_table['subclass']=='STARBURST BROADLINE')] = 'G STBR'
+    data_table['ClassAndSubclass'][(data_table['class']=='GALAXY') & (data_table['subclass']=='STARFORMING BROADLINE')] = 'G STFBR'
+
+    data_table['ClassAndSubclass'][(data_table['class']=='QSO') & (data_table['subclass']=='STARFORMING')] = 'Q STF'
+    data_table['ClassAndSubclass'][(data_table['class']=='QSO') & (data_table['subclass']=='BROADLINE')] = 'Q BRL'
+    data_table['ClassAndSubclass'][(data_table['class']=='QSO') & (data_table['subclass']=='STARBURST')] = 'Q STB'  
+    data_table['ClassAndSubclass'][(data_table['class']=='QSO') & (data_table['subclass']=='AGN')] = 'Q AGN'  
+    data_table['ClassAndSubclass'][(data_table['class']=='QSO') & (data_table['subclass']=='AGN BROADLINE')] = 'Q AGNB'      
+    data_table['ClassAndSubclass'][(data_table['class']=='QSO') & (data_table['subclass']=='STARBURST BROADLINE')] = 'Q STBR'   
+    data_table['ClassAndSubclass'][(data_table['class']=='QSO') & (data_table['subclass']=='STARFORMING BROADLINE')] = 'Q STFBR'
+    
+    
+    
+    
     # save the classes to predict        
-    data_table['ClassAndSubclass'] = data_table['class'] +', '+ data_table['subclass']
+    #data_table['ClassAndSubclass'] = data_table['class'] +', '+ data_table['subclass']
     classes=data_table['ClassAndSubclass']
 
     #trim away unwanted columns    
@@ -179,7 +202,7 @@ def linear_classifier(data,train_percent,n_jobs=-1,additionalFeatures=False,dire
     # check accuracy and other metrics:
     classes_pred = pipeline.predict(data['features_test'])
     accuracy=(accuracy_score(data['classes_test'], classes_pred))
-    f1 = f1_score(data['classes_test'],classes_pred,labels=data['class_names'],average='weighted')
+    f1 = f1_score(data['classes_test'],classes_pred,average='weighted')
     
     #plot_feature_importance(data,pipeline,title='Feature Importance LogisticReg')
     
@@ -201,8 +224,10 @@ def linear_classifier(data,train_percent,n_jobs=-1,additionalFeatures=False,dire
     print('Finished Feature importance plotting.')
     if(additionalFeatures):
         plt.savefig(directory+'LinearFeatureImportanceAdditionalFeatures.png')
+        plt.gcf().clear()
     else:
         plt.savefig(directory+'LinearFeatureImportance.png')
+        plt.gcf().clear()
     
     return classes_pred,accuracy,f1
     
@@ -248,7 +273,7 @@ if __name__ == "__main__":
     
     data, scaler = prepare_data_subclass_galaxies(input_table,trim_columns,train_percent=0.7,additionalFeatures=False)
     
-    directory = 'MLsubclass/'
+    directory = 'MLsubclass_2802/'
     if not os.path.exists(directory):
         os.makedirs(directory)
     
