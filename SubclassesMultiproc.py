@@ -194,7 +194,8 @@ def NeuralNet(trim_columns,input_table='test_query_table_100k', n_jobs=-1,):
 
             return np.array(batch_x), np.array(batch_y)
     
-    params = {'batch_size': 128}
+    
+    params = {'batch_size': int(len(x_train)/256)}
     
     training_generator = DataSequenceGenerator(x_train, dummy_y_train, **params)
     
@@ -204,11 +205,12 @@ def NeuralNet(trim_columns,input_table='test_query_table_100k', n_jobs=-1,):
     def baseline_model():
        	# create model
         model = Sequential()
-        model.add(Dense(units = 64, kernel_initializer = 'uniform', activation = 'relu', input_dim=input_dim))
-        model.add(Dropout(0.1))
-        model.add(Dense(units = 32, kernel_initializer = 'uniform', activation = 'relu'))
-        model.add(Dropout(0.1))
-        model.add(Dense(units = 16, kernel_initializer = 'uniform', activation = 'sigmoid'))
+        model.add(Dense(units = 32, kernel_initializer = 'VarianceScaling', activation = 'relu', input_dim=input_dim))
+        #model.add(Dropout(0.3))
+        model.add(Dense(units = 16, kernel_initializer = 'VarianceScaling', activation = 'sigmoid'))
+        #model.add(Dropout(0.3))
+        model.add(Dense(units = 14, kernel_initializer = 'VarianceScaling', activation = 'sigmoid'))
+        #model.add(Dropout(0.3))
         model.add(Dense(units=output_dim, activation='softmax'))
     	# Compile model
         model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['categorical_accuracy'])
@@ -220,7 +222,7 @@ def NeuralNet(trim_columns,input_table='test_query_table_100k', n_jobs=-1,):
     
     
     #classifier.fit(x_train, dummy_y_train,class_weight=class_weights, batch_size = 16, epochs = 10,verbose=True)
-    classifier.fit_generator(generator=training_generator,epochs=20,use_multiprocessing=True,workers=-1)
+    classifier.fit_generator(generator=training_generator,class_weight=class_weights,epochs=300,use_multiprocessing=True,workers=-1)
     
     """
     estimator = KerasClassifier(build_fn=baseline_model, epochs=2, batch_size=1, verbose=0)
