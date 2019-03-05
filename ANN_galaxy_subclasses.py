@@ -170,13 +170,15 @@ def NeuralNet(trim_columns,input_table='test_query_table_100k', n_jobs=-1,):
     x_train, x_test, dummy_y_train, dummy_y_test,encoder,class_weights,_ = prepare_data_NN(input_table, trim_columns)
     input_dim = len(x_train[0])
     output_dim = len(dummy_y_train[0])
+
+    # Importing the Keras libraries and packages
+    from keras.models import Sequential
+    from keras.layers import Dense
+    from keras.layers import Dropout
+
     # define baseline model
     def baseline_model():
-        # Importing the Keras libraries and packages
-        from keras.models import Sequential
-        from keras.layers import Dense
-        from keras.layers import Dropout
-        	# create model
+       	# create model
         model = Sequential()
         model.add(Dense(units = 64, kernel_initializer = 'uniform', activation = 'relu', input_dim=input_dim))
         model.add(Dropout(0.1))
