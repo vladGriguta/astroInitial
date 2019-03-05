@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Feb 28 13:59:10 2019
+Created on Tue Mar  5 14:58:34 2019
 
 @author: vladgriguta
 """
@@ -194,7 +194,7 @@ def NeuralNet(trim_columns,input_table='test_query_table_100k', n_jobs=-1,):
 
             return np.array(batch_x), np.array(batch_y)
     
-    params = {'batch_size': 64}
+    params = {'batch_size': 128}
     
     training_generator = DataSequenceGenerator(x_train, dummy_y_train, **params)
     
