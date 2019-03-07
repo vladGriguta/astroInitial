@@ -229,7 +229,7 @@ def SVC_classifier(data,train_percent,additionalFeatures=False):
 
 if __name__ == "__main__":
     
-    input_table = 'test_query_table_100k'
+    input_table = '../moreData/test_query_table_1M'
     trim_columns=['#ra', 'dec', 'z', 'peak','integr','rms','subclass']
 
     
@@ -243,6 +243,11 @@ if __name__ == "__main__":
     classes_pred,accuracy_SVC,f1_SVC = SVC_classifier(data,train_percent=0.7,additionalFeatures=True)
     print('The accuracy of SVC is a = '+str(accuracy_SVC))
     print('The f1 score of SVC is a = '+str(f1_SVC))
+    
+    classes_pred_RF,accuracy_RF,f1_RF = RF_pipeline(data,train_percent=0.7,additionalFeatures=True)
+    print('The accuracy of SVC is a = '+str(accuracy_SVC))
+    print('The f1 score of SVC is a = '+str(f1_SVC))
+    
     
     
     
